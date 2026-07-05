@@ -1,0 +1,13 @@
+numpy
+psutil
+turbovec
+torch
+torchvision
+timm
+transformers
+sentence-transformers
+datasets
+kagglehub
+pandas
+pillow
+scikit-learn
