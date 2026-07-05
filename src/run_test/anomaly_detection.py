@@ -9,10 +9,6 @@ For each variant we run:
     - Baseline : exact k-NN per-query on float32 embeddings
     - TurboVec : k-NN per-query via TurboQuantIndex (bit_width=2, 4)
 
-Metrics:
-    - average_precision_score  (AP, area under PR curve)
-    - auc(pr_curve)            (AUC-PR)
-
 Usage:
     py anomaly_detection.py --k 5
     py anomaly_detection.py --k 10 --quick-test

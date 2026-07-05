@@ -1,6 +1,5 @@
 """
-Scaled-up version of toy.py: benchmarks exact (baseline) search vs TurboVec
-on the full validation ("small") or train ("large") RAG splits.
+benchmarks exact (baseline) search vs TurboVec on the full validation ("small") or train ("large") RAG splits.
 Runs baseline per-query (fair comparison) and tests TurboVec at bit-widths 2 and 4.
 
 Usage:
@@ -66,7 +65,7 @@ def reciprocal_rank(predicted, target):
             return 1 / rank
     return 0
 
-# Baseline: run PER-QUESTION to match TurboVec latency measurement.
+# Baseline
 def run_baseline(context_embeddings, context_ids, query_embeddings, questions, k_values, mode, dim, run_id, save_every=20):
     print("\n[baseline] running exact search per-question (fair comparison)...")
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -152,7 +151,7 @@ def run_baseline(context_embeddings, context_ids, query_embeddings, questions, k
     return csv_path, summary
 
 
-# TurboVec: run per-question, save to CSV every `save_every` questions.
+# TurboVec
 def run_turbovec_eval(index, context_ids, model, questions, k_values, mode, dim, bit_width, run_id, save_every=20):
     os.makedirs(RESULTS_DIR, exist_ok=True)
     csv_path = os.path.join(RESULTS_DIR, f"turbovec_{mode}_dim{dim}_bw{bit_width}_{run_id}.csv")

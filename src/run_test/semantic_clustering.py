@@ -1,13 +1,7 @@
 """
 Semantic Clustering Benchmark for TurboVec
 
-1. k-NN Accuracy: majority vote of k nearest neighbors predicts the true category
-2. Mean Same-Class Recall@k: average fraction of neighbors in the same category
-3. MRR: mean reciprocal rank of the first same-category neighbor
-4. Silhouette Score: clustering quality on cosine distance
-
-The benchmark compares exact k-NN (float32, per-query) against TurboVec
-quantized search (2-bit and 4-bit).
+The benchmark compares exact k-NN (float32, per-query) against TurboVec quantized search (2-bit and 4-bit).
 """
 
 import argparse

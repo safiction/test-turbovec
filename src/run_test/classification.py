@@ -22,17 +22,11 @@ from turbovec import TurboQuantIndex
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics import accuracy_score, f1_score
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "classification"
 
 RESULTS_DIR = "results/classification"
 
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
 def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -42,15 +36,11 @@ def get_rss_mb() -> float:
     process = psutil.Process(os.getpid())
     return process.memory_info().rss / (1024 ** 2)
 
-
 def majority_vote(labels):
     """Return the most common label."""
     return Counter(labels).most_common(1)[0][0]
 
-
-# ---------------------------------------------------------------------------
 # Baseline: exact k-NN per-query
-# ---------------------------------------------------------------------------
 def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, dim, run_id, save_every=20):
     print(f"\n[baseline] running exact k-NN (k={k}) per-query...")
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -121,10 +111,7 @@ def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, 
 
     return csv_path, summary
 
-
-# ---------------------------------------------------------------------------
 # TurboVec: k-NN per-query via quantized index
-# ---------------------------------------------------------------------------
 def run_turbovec_eval(index, train_labels, model, test_data, test_embeddings, k, dim, bit_width, run_id, save_every=20):
     os.makedirs(RESULTS_DIR, exist_ok=True)
     csv_path = os.path.join(RESULTS_DIR, f"turbovec_dim{dim}_bw{bit_width}_k{k}_{run_id}.csv")
@@ -184,9 +171,6 @@ def run_turbovec_eval(index, train_labels, model, test_data, test_embeddings, k,
     return csv_path, summary
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="k-NN classification: baseline vs TurboVec.")
     parser.add_argument("--dim", type=int, default=384, help="embedding dimension (truncate_dim)")

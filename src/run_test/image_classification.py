@@ -2,13 +2,6 @@
 Image Classification Benchmark for TurboVec
 Compares exact k-NN (float32) vs TurboVec quantized search.
 
-Metrics:
-    - Top-1 Accuracy
-    - Top-5 Accuracy (if k >= 5)
-    - F1-macro, F1-weighted
-    - Per-class accuracy (mean across all classes)
-    - Query time, memory usage
-
 Usage:
     py src/run_test/image_classification.py --k 5
     py src/run_test/image_classification.py --k 5 --quick-test

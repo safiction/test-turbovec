@@ -81,7 +81,7 @@ py src/run_test/semantic_search.py --quick-test
 | **Источник** | HuggingFace `kuznetsoffandrey/sberquad` |
 | **Размер** | train: 5 000 вопросов / validation: 2 000 вопросов |
 | **Модель эмбеддингов** | `nomic-ai/nomic-embed-text-v1.5` |
-| **Метрики** | Recall@1/5/10, MRR, время поиска, память |
+| **Метрики** | Recall@1/5/10, MRR |
 | **Параметры** | `dim ∈ [384, 512, 1024]`, `bit_width ∈ [2, 4]` |
 
 **Пайплайн:**

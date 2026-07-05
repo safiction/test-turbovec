@@ -1,17 +1,6 @@
 """
 Semantic Search Benchmark for TurboVec (MS MARCO)
 
-Model: sentence-transformers/multi-qa-mpnet-base-cos-v1
-This model is trained for cosine similarity and produces normalized embeddings,
-making it ideal for TurboVec quantization.
-
-Metrics:
-    - NDCG@k      (Normalized Discounted Cumulative Gain)
-    - MAP@k       (Mean Average Precision)
-    - Recall@k    (fraction of relevant docs found in top-k)
-    - Precision@k (fraction of top-k that is relevant)
-    - MRR         (Mean Reciprocal Rank of first relevant doc)
-
 Usage:
     py semantic_search.py
     py semantic_search.py --limit 200   # quick dry run
