@@ -3,7 +3,6 @@ psutil
 turbovec
 torch
 torchvision
-timm
 transformers
 sentence-transformers
 datasets
