@@ -149,10 +149,10 @@ py src/run_test/semantic_search.py --quick-test
 
 | Параметр | Значение |
 |----------|----------|
-| **Данные** | Flowers-37 (Oxford 102 Flowers, 37 классов) |
-| **Источник** | Kaggle |
-| **Размер** | 3 680 train / 3 669 test |
-| **Модель эмбеддингов** | `resnet50.a1_in1k` (timm) |
+| **Данные** | tanganke/sun397 (397 классов) |
+| **Источник** | HuggingFace |
+| **Размер** | 19850 train / 19850 test |
+| **Модель эмбеддингов** | clip-vit-base-patch32 |
 | **Метрики** | Top-1 Accuracy, Top-5 Accuracy, F1-macro, F1-weighted, Per-class Accuracy |
 | **Параметры** | `k ∈ [5, 10]`, `bit_width ∈ [2, 4]` |
 
@@ -171,7 +171,7 @@ py src/run_test/semantic_search.py --quick-test
 | **Semantic Search** | NDCG@10: 0.648 | NDCG@10: 0.647 | **−0.1%** | ✅ Отлично |
 | **RAG Search** | Recall@10: 0.375 | Recall@10: 0.376 | **+0.1%** | ✅ Отлично |
 | **Classification** | Accuracy: 1.000 | Accuracy: 1.000 | **0%** | ✅ Отлично |
-| **Image Classification** | Top-1: 0.901 | Top-1: 0.900 | **−0.1%** | ✅ Отлично |
+| **Image Classification** | Top-5 Accuracy: 0.862 | Top-5 Accuracy: 0.860 | **−0.2%** | ✅ Отлично |
 | **Semantic Clustering** | k-NN Acc: 0.400 | k-NN Acc: 0.400 | **0%** | ✅ Отлично |
 | **Anomaly Detection (raw)** | AP: 0.00065 | AP: 0.00065 | **0%** | ✅ Отлично |
 | **Anomaly Detection (normalized)** | AP: 0.0104 | AP: 0.0089 | **−14%** | ⚠️ Заметная просадка на bw2; на bw4 — приемлемо (−5%) |

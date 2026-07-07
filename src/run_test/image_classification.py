@@ -19,19 +19,18 @@ from pathlib import Path
 import numpy as np
 import psutil
 import torch
-import timm
 from PIL import Image
 from sklearn.metrics import accuracy_score, f1_score
 from torchvision import transforms
-
+from transformers import CLIPProcessor, CLIPModel
 from turbovec import TurboQuantIndex
+
+MODEL_NAME = 'clip-vit-base-patch32'
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "image_classification"
 RESULTS_DIR = PROJECT_ROOT / "results" / "image_classification"
 
-MODEL_NAME = "resnet50.a1_in1k"
-IMAGE_SIZE = 224
 
 def get_rss_mb() -> float:
     return psutil.Process(os.getpid()).memory_info().rss / (1024 ** 2)
@@ -42,7 +41,36 @@ def load_json(path):
         return json.load(f)
 
 
+def encode_images(model, processor, image_paths, device, batch_size=32):
+    """Encode images to CLIP embeddings, GPU if available."""
+    all_embeddings = []
+    n = len(image_paths)
+    processed = 0
+    for i in range(0, n, batch_size):
+        batch_paths = image_paths[i:i + batch_size]
+        images = [Image.open(p).convert("RGB") for p in batch_paths]
+        inputs = processor(images=images, return_tensors="pt", padding=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = model.get_image_features(**inputs)
+        if hasattr(outputs, "pooler_output"):
+            outputs = outputs.pooler_output
+        embeddings = outputs.cpu().numpy()
+        # L2 normalize
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        embeddings = embeddings / norms
+        all_embeddings.append(embeddings.astype(np.float32))
+
+        processed += len(batch_paths)
+        if processed % 1000==0:
+            print(f"[encode] {processed}/{n} images processed")
+
+    return np.vstack(all_embeddings)
+
+
 def majority_vote(labels):
+    """Return the most common label."""
     return Counter(labels).most_common(1)[0][0]
 
 
@@ -56,7 +84,7 @@ def top_k_accuracy(neighbor_labels, true_labels, k):
 
 
 def per_class_accuracy(neighbor_labels, true_labels, num_classes, k):
-    """Mean accuracy per class."""
+    """Mean accuracy per class (using majority vote from top-k)."""
     class_correct = {i: 0 for i in range(num_classes)}
     class_total = {i: 0 for i in range(num_classes)}
 
@@ -73,60 +101,14 @@ def per_class_accuracy(neighbor_labels, true_labels, num_classes, k):
             accuracies.append(class_correct[i] / class_total[i])
     return np.mean(accuracies) if accuracies else 0.0
 
-def get_transform():
-    return transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(IMAGE_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ])
 
-
-def load_image(path):
-    return Image.open(path).convert("RGB")
-
-
-def create_model():
-    model = timm.create_model(MODEL_NAME, pretrained=True, num_classes=0)
-    model.eval()
-    return model
-
-
-def encode_images(model, image_paths, batch_size=32, device="cpu"):
-    """Encode images to embeddings using ResNet50."""
-    transform = get_transform()
-    model = model.to(device)
-    embeddings = []
-
-    total = len(image_paths)
-    for i in range(0, total, batch_size):
-        batch_paths = image_paths[i:i + batch_size]
-        images = torch.stack([transform(load_image(p)) for p in batch_paths])
-        images = images.to(device)
-
-        with torch.no_grad():
-            batch_emb = model(images)
-
-        batch_emb = batch_emb.cpu().numpy()
-        # Normalize
-        batch_emb /= np.linalg.norm(batch_emb, axis=1, keepdims=True)
-        embeddings.append(batch_emb)
-
-        processed = min(i + batch_size, total)
-        if processed % 1000 == 0 or processed == total:
-            print(f"[encode] {processed}/{total} images processed...")
-
-    return np.vstack(embeddings).astype(np.float32)
-
-
-# Baseline: exact k-NN
-def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, label_to_breed, run_id, num_classes, save_every=20):
+# Baseline: exact k-NN per-query
+def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, run_id, num_classes, save_every=1000):
     print(f"\n[baseline] running exact k-NN (k={k}) per-query...")
     os.makedirs(RESULTS_DIR, exist_ok=True)
     csv_path = os.path.join(RESULTS_DIR, f"baseline_k{k}_{run_id}.csv")
 
-    fieldnames = ["test_id", "image_path", "true_label", "true_breed", "pred_label", "pred_breed", "time_ms"]
+    fieldnames = ["test_id", "true_label", "pred_label", "time_ms"]
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         csv.DictWriter(f, fieldnames=fieldnames).writeheader()
@@ -139,8 +121,6 @@ def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, 
 
     for i, sample in enumerate(test_data, start=1):
         query = test_embeddings[i - 1]
-        if query.ndim == 2:
-            query = query[0]
 
         start = time.time()
         scores = train_embeddings @ query
@@ -149,16 +129,13 @@ def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, 
         pred = majority_vote(neighbor_labels)
         elapsed_ms = (time.time() - start) * 1000
 
-        all_neighbor_labels.append(neighbor_labels)
         predictions.append(pred)
+        all_neighbor_labels.append(neighbor_labels)
 
         row = {
             "test_id": i,
-            "image_path": sample["image_path"],
             "true_label": sample["label"],
-            "true_breed": sample["breed"],
             "pred_label": pred,
-            "pred_breed": label_to_breed.get(pred, ""),
             "time_ms": elapsed_ms,
         }
         rows_buffer.append(row)
@@ -170,11 +147,13 @@ def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, 
                 csv.DictWriter(f, fieldnames=fieldnames).writerows(rows_buffer)
 
             batch_avg_time = sum(r["time_ms"] for r in rows_buffer) / len(rows_buffer)
-            print(f"[baseline] {i}/{n_test} processed | last batch avg time={batch_avg_time:.2f} ms")
+            print(
+                f"[baseline] {i}/{n_test} processed | "
+                f"last batch avg time={batch_avg_time:.2f} ms | saved to {csv_path}"
+            )
             rows_buffer = []
 
     true_labels = [s["label"] for s in test_data]
-
     summary = {
         "total_time_sec": total_time_ms / 1000,
         "avg_time_per_query_ms": total_time_ms / n_test,
@@ -198,12 +177,13 @@ def run_baseline(train_embeddings, train_labels, test_embeddings, test_data, k, 
     return csv_path, summary, all_neighbor_labels
 
 
-# TurboVec: quantized k-NN
-def run_turbovec_eval(index, train_labels, test_data, test_embeddings, k, bit_width, label_to_breed, run_id, num_classes, save_every=20):
+# TurboVec: quantized k-NN per-query
+def run_turbovec_eval(index, train_labels, test_embeddings, test_data, k, bit_width, run_id, num_classes, save_every=1000):
+    print(f"\n[turbovec] running k-NN (k={k}) for bit_width={bit_width}...")
     os.makedirs(RESULTS_DIR, exist_ok=True)
     csv_path = os.path.join(RESULTS_DIR, f"turbovec_bw{bit_width}_k{k}_{run_id}.csv")
 
-    fieldnames = ["test_id", "image_path", "true_label", "true_breed", "pred_label", "pred_breed", "time_ms"]
+    fieldnames = ["test_id", "true_label", "pred_label", "time_ms"]
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         csv.DictWriter(f, fieldnames=fieldnames).writeheader()
@@ -223,16 +203,13 @@ def run_turbovec_eval(index, train_labels, test_data, test_embeddings, k, bit_wi
         pred = majority_vote(neighbor_labels)
         elapsed_ms = (time.time() - start) * 1000
 
-        all_neighbor_labels.append(neighbor_labels)
         predictions.append(pred)
+        all_neighbor_labels.append(neighbor_labels)
 
         row = {
             "test_id": i,
-            "image_path": sample["image_path"],
             "true_label": sample["label"],
-            "true_breed": sample["breed"],
             "pred_label": pred,
-            "pred_breed": label_to_breed.get(pred, ""),
             "time_ms": elapsed_ms,
         }
         rows_buffer.append(row)
@@ -244,11 +221,13 @@ def run_turbovec_eval(index, train_labels, test_data, test_embeddings, k, bit_wi
                 csv.DictWriter(f, fieldnames=fieldnames).writerows(rows_buffer)
 
             batch_avg_time = sum(r["time_ms"] for r in rows_buffer) / len(rows_buffer)
-            print(f"[turbovec] {i}/{n_test} processed | last batch avg time={batch_avg_time:.2f} ms")
+            print(
+                f"[turbovec] {i}/{n_test} processed | "
+                f"last batch avg time={batch_avg_time:.2f} ms | saved to {csv_path}"
+            )
             rows_buffer = []
 
     true_labels = [s["label"] for s in test_data]
-
     summary = {
         "total_time_sec": total_time_ms / 1000,
         "avg_time_per_query_ms": total_time_ms / n_test,
@@ -260,6 +239,13 @@ def run_turbovec_eval(index, train_labels, test_data, test_embeddings, k, bit_wi
 
     if k >= 5:
         summary["top5_accuracy"] = top_k_accuracy(all_neighbor_labels, true_labels, 5)
+
+    print(f"[turbovec bw={bit_width}] done:")
+    for key, value in summary.items():
+        if isinstance(value, float):
+            print(f"    {key}: {value:.4f}")
+        else:
+            print(f"    {key}: {value}")
 
     return csv_path, summary, all_neighbor_labels
 
@@ -283,26 +269,24 @@ def main():
 
     print(f"[load] {len(train_data)} train, {len(test_data)} test samples")
 
-    num_classes = len({s["label"] for s in train_data})
+    num_classes = max(max(d["label"] for d in train_data), max(d["label"] for d in test_data)) + 1
     print(f"[load] num_classes={num_classes}")
 
-    train_labels = [s["label"] for s in train_data]
-    train_paths = [s["image_path"] for s in train_data]
-    test_paths = [s["image_path"] for s in test_data]
+    train_paths = [d["image_path"] for d in train_data]
+    train_labels = [d["label"] for d in train_data]
+    test_paths = [d["image_path"] for d in test_data]
 
-    # predictions are always a label drawn from train_labels, so the
-    # label->breed mapping must be built from train_data (not test_data, which may not cover every class)
-    label_to_breed = {s["label"]: s["breed"] for s in train_data}
-
-    print(f"[model] loading {MODEL_NAME} ...")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[model] loading {MODEL_NAME} on {device} ...")
     mem_before_model = get_rss_mb()
-    model = create_model()
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     mem_after_model = get_rss_mb()
     print(f"[model] loaded. process RSS delta={mem_after_model - mem_before_model:.2f} MB")
 
     print("[encode] embedding train images...")
     mem_before = get_rss_mb()
-    train_embeddings = encode_images(model, train_paths)
+    train_embeddings = encode_images(model, processor, train_paths, device, batch_size=32)
     mem_after = get_rss_mb()
     print(
         f"[encode] done. shape={train_embeddings.shape}, "
@@ -311,11 +295,11 @@ def main():
     )
 
     print("[encode] embedding test images...")
-    test_embeddings = encode_images(model, test_paths)
+    test_embeddings = encode_images(model, processor, test_paths, device, batch_size=32)
 
     baseline_csv_path, baseline_summary, _ = run_baseline(
         train_embeddings, train_labels, test_embeddings, test_data,
-        args.k, label_to_breed, run_id, num_classes,
+        args.k, run_id, num_classes,
     )
 
     baseline_mb = train_embeddings.nbytes / (1024 ** 2)
@@ -343,8 +327,8 @@ def main():
 
         print(f"\n[turbovec] running k-NN (k={args.k}) for bit_width={bw}...")
         csv_path, turbovec_summary, _ = run_turbovec_eval(
-            index, train_labels, test_data, test_embeddings,
-            args.k, bw, label_to_breed, run_id, num_classes,
+            index, train_labels, test_embeddings, test_data,
+            args.k, bw, run_id, num_classes,
         )
 
         turbovec_summary["bit_width"] = bw
@@ -387,7 +371,6 @@ def main():
                 "n_train": len(train_data),
                 "n_test": len(test_data),
                 "num_classes": num_classes,
-                "model": MODEL_NAME,
                 "baseline": baseline_summary,
                 "turbovec": turbovec_results,
                 "memory_mb": memory_entries,

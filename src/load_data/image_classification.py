@@ -1,9 +1,7 @@
-"""
-Load Oxford-IIIT Pet dataset and save train/test metadata as JSON.
-"""
 import json
+import os
 from pathlib import Path
-from torchvision.datasets import OxfordIIITPet
+from datasets import load_dataset
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "data" / "image_classification"
@@ -17,51 +15,40 @@ def save_json(data, filename):
     print(f"Saved: {path}")
 
 
-def load_and_save():
-    print("Loading Oxford-IIIT Pet dataset...")
+dataset_train = load_dataset('tanganke/sun397')['train']
+dataset_test = load_dataset('tanganke/sun397')['test']
 
-    train = OxfordIIITPet(
-        root=OUTPUT_DIR,
-        split="trainval",
-        target_types="category",
-        download=True,
-    )
+print(f"Train size: {len(dataset_train)} images")
+print(f"Test size: {len(dataset_test)} images")
 
-    test = OxfordIIITPet(
-        root=OUTPUT_DIR,
-        split="test",
-        target_types="category",
-        download=True,
-    )
+train_data = []
+for i, sample in enumerate(dataset_train):
+    image = sample['image']
+    # Save image to disk so run_test can load it later
+    img_path = OUTPUT_DIR / "train_images" / f"{i}.jpg"
+    img_path.parent.mkdir(parents=True, exist_ok=True)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    image.save(img_path)
+    train_data.append({"image_path": str(img_path), "label": int(sample['label'])})
+    if i%1000:
+        print(i, "images saved")
 
-    label_names = train.classes  # list of breed names
+test_data = []
+for i, sample in enumerate(dataset_test):
+    image = sample['image']
+    img_path = OUTPUT_DIR / "test_images" / f"{i}.jpg"
+    img_path.parent.mkdir(parents=True, exist_ok=True)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    image.save(img_path)
+    test_data.append({"image_path": str(img_path), "label": int(sample['label'])})
+    if i%1000:
+        print(i, "images saved")
 
-    train_data = [
-        {
-            "image_path": str(Path(img_path).resolve()),
-            "label": int(label),
-            "breed": label_names[label],
-        }
-        for img_path, label in zip(train._images, train._labels)
-    ]
+save_json(train_data, "train.json")
+save_json(test_data, "test.json")
 
-    test_data = [
-        {
-            "image_path": str(Path(img_path).resolve()),
-            "label": int(label),
-            "breed": label_names[label],
-        }
-        for img_path, label in zip(test._images, test._labels)
-    ]
-
-    save_json(train_data, "train.json")
-    save_json(test_data, "test.json")
-
-    print(f"Train samples: {len(train_data)}")
-    print(f"Test samples: {len(test_data)}")
-    print(f"Classes: {len(label_names)}")
-    print(f"Class names: {label_names}")
-
-
-if __name__ == "__main__":
-    load_and_save()
+print(f"Train samples: {len(train_data)}")
+print(f"Test samples: {len(test_data)}")
+print(f"Num classes: {max(d['label'] for d in train_data) + 1}")
