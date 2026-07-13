@@ -20,6 +20,7 @@
 │   ├── semantic_clustering/
 │   ├── semantic_search/
 │   └── image_classification/
+├── notebooks/               # Анализ результатов по задачам
 ├── src/
 │   ├── load_data/           # Скрипты загрузки и подготовки данных
 │   └── run_test/            # Скрипты запуска бенчмарков
@@ -134,10 +135,10 @@ py src/run_test/semantic_search.py --quick-test
 |----------|----------|
 | **Данные** | 20 Newsgroups |
 | **Источник** | sklearn `fetch_20newsgroups` |
-| **Размер** | ~11 000 документов, 20 категорий |
+| **Размер** | ~5 000 документов, 20 категорий |
 | **Модель эмбеддингов** | `nomic-ai/nomic-embed-text-v1.5` |
 | **Метрики** | k-NN Accuracy, Mean Same-Class Recall@k, MRR, Silhouette Score |
-| **Параметры** | `dim = 384`, `k ∈ [5, 10]`, `bit_width ∈ [2, 4]` |
+| **Параметры** | `dim = 512`, `k ∈ [5, 10]`, `bit_width ∈ [2, 4]` |
 
 **Пайплайн:**
 1. `py src/load_data/semantic_clustering.py` — загрузка текстов, генерация эмбеддингов
@@ -172,7 +173,7 @@ py src/run_test/semantic_search.py --quick-test
 | **RAG Search** | Recall@10: 0.375 | Recall@10: 0.376 | **+0.1%** | ✅ Отлично |
 | **Classification** | Accuracy: 0.9025 | Accuracy: 0.898 | **-0.0045%** | ✅ Отлично |
 | **Image Classification** | Top-5 Accuracy: 0.862 | Top-5 Accuracy: 0.860 | **−0.2%** | ✅ Отлично |
-| **Semantic Clustering** | k-NN Acc: 0.400 | k-NN Acc: 0.400 | **0%** | ✅ Отлично |
+| **Semantic Clustering** | k-NN Acc: 0.696 | k-NN Acc: 0.692 | **-0.004%** | ✅ Отлично |
 | **Anomaly Detection (raw)** | AP: 0.00065 | AP: 0.00065 | **0%** | ✅ Отлично |
 | **Anomaly Detection (normalized)** | AP: 0.0104 | AP: 0.0089 | **−14%** | ⚠️ Заметная просадка на bw2; на bw4 — приемлемо (−5%) |
 
